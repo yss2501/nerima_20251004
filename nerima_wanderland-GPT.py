@@ -23,6 +23,18 @@ def get_openrouter_client():
 
 # 利用可能なAIモデル一覧（OpenRouter対応）
 AVAILABLE_MODELS = {
+    # 無料モデル（推奨）
+    "llama-4-maverick (無料)": "meta-llama/llama-4-maverick:free",
+    "llama-4-scout (無料)": "meta-llama/llama-4-scout:free", 
+    "deepseek-chat-v3 (無料)": "deepseek/deepseek-chat-v3-0324:free",
+    "deepseek-r1 (無料)": "deepseek/deepseek-r1:free",
+    "gemini-2.5-pro (無料)": "google/gemini-2.5-pro-exp-03-25:free",
+    "gemini-2.0-flash (無料)": "google/gemini-2.0-flash-exp:free",
+    "llama-3.3-70b (無料)": "meta-llama/llama-3.3-70b-instruct:free",
+    "gemma-3-27b (無料)": "google/gemma-3-27b-it:free",
+    "qwq-32b (無料)": "qwen/qwq-32b:free",
+    
+    # 有料モデル
     "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
     "gpt-4o": "openai/gpt-4o", 
     "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
@@ -150,7 +162,7 @@ def test_api_key(api_key):
             return {"success": False, "error": f"エラー: {error_msg}"}
 
 # コメント生成関数
-def generate_gpt_comment(destinations, model_name="claude-3-haiku"):
+def generate_gpt_comment(destinations, model_name="llama-4-maverick (無料)"):
     try:
         # APIキーの存在チェック
         if "openai" not in st.secrets or "api_key" not in st.secrets["openai"]:
@@ -162,7 +174,7 @@ def generate_gpt_comment(destinations, model_name="claude-3-haiku"):
             return "⚠️ OpenRouterクライアントの初期化に失敗しました。"
         
         # モデル名を取得
-        model = AVAILABLE_MODELS.get(model_name, AVAILABLE_MODELS["claude-3-haiku"])
+        model = AVAILABLE_MODELS.get(model_name, AVAILABLE_MODELS["llama-4-maverick (無料)"])
         
         # プロンプトの作成（文字エンコーディング対応）
         def safe_encode(text):
@@ -456,8 +468,8 @@ else:
         
         # GPTコメント生成（一度だけ実行）
         if "adventure_comment" not in st.session_state:
-            # 選択されたモデルを取得（デフォルトはclaude-3-haiku）
-            selected_model = st.session_state.get("selected_model", "claude-3-haiku")
+            # 選択されたモデルを取得（デフォルトはllama-4-maverick）
+            selected_model = st.session_state.get("selected_model", "llama-4-maverick (無料)")
             with st.spinner(f"コメントを生成中です（{selected_model}）..."):
                 st.session_state["adventure_comment"] = generate_gpt_comment(destinations, selected_model)
         
@@ -787,7 +799,7 @@ if st.session_state.get("show_admin", False):
         
         # デフォルトモデルを設定
         if "selected_model" not in st.session_state:
-            st.session_state["selected_model"] = "claude-3-haiku"
+            st.session_state["selected_model"] = "llama-4-maverick (無料)"
         
         # モデル選択
         selected_model = st.selectbox(
@@ -799,14 +811,23 @@ if st.session_state.get("show_admin", False):
         
         # モデル情報を表示
         model_info = {
-            "claude-3-haiku": "🚀 高速・低コスト（推奨）",
-            "claude-3.5-sonnet": "🧠 高性能・中コスト",
-            "gpt-3.5-turbo": "⚡ OpenAI標準モデル",
-            "gpt-4o": "💎 OpenAI最高性能",
-            "gemini-pro": "🔍 Google Gemini",
-            "llama-3.1-8b": "🦙 Meta Llama（無料枠あり）",
-            "qwen-2.5-7b": "🌟 Alibaba Qwen",
-            "deepseek-chat": "🎯 DeepSeek（高品質）"
+            "llama-4-maverick (無料)": "🚀 Meta最新の無料モデル（推奨）",
+            "llama-4-scout (無料)": "🎯 Meta無料モデル・高速処理",
+            "deepseek-chat-v3 (無料)": "🧠 DeepSeek無料モデル・高品質",
+            "deepseek-r1 (無料)": "⚡ DeepSeek無料モデル・推論特化",
+            "gemini-2.5-pro (無料)": "🌟 Google無料モデル・高性能",
+            "gemini-2.0-flash (無料)": "⚡ Google無料モデル・高速",
+            "llama-3.3-70b (無料)": "🏆 Meta無料モデル・大規模",
+            "gemma-3-27b (無料)": "💎 Google無料モデル・軽量",
+            "qwq-32b (無料)": "🎨 Qwen無料モデル・創造的",
+            "gpt-3.5-turbo": "💰 OpenAI有料モデル・標準",
+            "gpt-4o": "💎 OpenAI有料モデル・最高性能",
+            "claude-3.5-sonnet": "🧠 Anthropic有料モデル・高品質",
+            "claude-3-haiku": "⚡ Anthropic有料モデル・高速",
+            "gemini-pro": "🌟 Google有料モデル・高性能",
+            "llama-3.1-8b": "🏃 Meta有料モデル・軽量",
+            "qwen-2.5-7b": "🎯 Qwen有料モデル・効率的",
+            "deepseek-chat": "🧠 DeepSeek有料モデル・高品質"
         }
         
         st.info(f"**選択中のモデル:** {model_info.get(selected_model, selected_model)}")
