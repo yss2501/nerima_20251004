@@ -248,8 +248,11 @@ st.title("練馬ワンダーランド")
 if "admin_authenticated" not in st.session_state:
     st.session_state["admin_authenticated"] = False
 
-# メインタブと管理者タブを作成
-tab1, tab2 = st.tabs(["🏠 メイン", "⚙️ 管理者メニュー"])
+# 管理者メニューボタンを右上に配置
+col1, col2, col3 = st.columns([3, 1, 1])
+with col3:
+    if st.button("⚙️ 管理者", help="管理者メニューを開く"):
+        st.session_state["show_admin"] = not st.session_state.get("show_admin", False)
 
 # サイドバーにウィジェットを配置
 with st.sidebar:
@@ -286,10 +289,9 @@ with st.sidebar:
     else:
         st.write("天気情報を取得できませんでした。")
 
-with tab1:
-    # 以下はスライドショーやルート検索の処理
-    if "search_completed" not in st.session_state:
-        st.session_state["search_completed"] = False
+# 以下はスライドショーやルート検索の処理
+if "search_completed" not in st.session_state:
+    st.session_state["search_completed"] = False
 
 if not search_button and not st.session_state["search_completed"]:
     image_placeholder = st.empty()
@@ -441,71 +443,83 @@ else:
 
                     st.session_state["map"] = m
                 
-# メイン画面に状態を再表示
-if "selected_data" in st.session_state:
-    selected_data = st.session_state["selected_data"]
+    # メイン画面に状態を再表示（管理者メニューが表示されていない場合のみ）
+    if "selected_data" in st.session_state and not st.session_state.get("show_admin", False):
+        selected_data = st.session_state["selected_data"]
 
-    st.write("### あなたの気分にあった冒険プランは、こちらです！")
-    # 目的地情報リスト
-    destinations = [
-        {"場所": selected_data["場所1"], "解説": selected_data["解説1"]},
-        {"場所": selected_data["場所2"], "解説": selected_data["解説2"]},
-    ]
-    
-    # GPTコメント生成（一度だけ実行）
-    if "adventure_comment" not in st.session_state:
-        # 選択されたモデルを取得（デフォルトはclaude-3-haiku）
-        selected_model = st.session_state.get("selected_model", "claude-3-haiku")
-        with st.spinner(f"コメントを生成中です（{selected_model}）..."):
-            st.session_state["adventure_comment"] = generate_gpt_comment(destinations, selected_model)
-    
-    adventure_comment = st.session_state["adventure_comment"]
+        st.write("### あなたの気分にあった冒険プランは、こちらです！")
+        # 目的地情報リスト
+        destinations = [
+            {"場所": selected_data["場所1"], "解説": selected_data["解説1"]},
+            {"場所": selected_data["場所2"], "解説": selected_data["解説2"]},
+        ]
+        
+        # GPTコメント生成（一度だけ実行）
+        if "adventure_comment" not in st.session_state:
+            # 選択されたモデルを取得（デフォルトはclaude-3-haiku）
+            selected_model = st.session_state.get("selected_model", "claude-3-haiku")
+            with st.spinner(f"コメントを生成中です（{selected_model}）..."):
+                st.session_state["adventure_comment"] = generate_gpt_comment(destinations, selected_model)
+        
+        adventure_comment = st.session_state["adventure_comment"]
 
-    # 場所1の情報を表示
-    st.write(f"#### {selected_data['場所1']}")
-    col1, col2 = st.columns([1, 3])  # カラムを分割してレイアウト調整
+        # 場所1の情報を表示
+        st.write(f"#### {selected_data['場所1']}")
+        col1, col2 = st.columns([1, 3])  # カラムを分割してレイアウト調整
+        with col1:
+            st.image(selected_data['画像1'], caption=selected_data['場所1'], width=150)
+        with col2:
+            st.write(selected_data['解説1'])
+        
+        # 場所2の情報を表示
+        st.write(f"#### {selected_data['場所2']}")
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            st.image(selected_data['画像2'], caption=selected_data['場所2'], width=150)
+        with col2:
+            st.write(selected_data['解説2'])
+
+        # GPTコメントを表示
+        st.write("### ネリーからの提案")
+        st.write(adventure_comment)
+
+        # 保存された表を表示
+        if "route_table" in st.session_state:
+            st.write("### ルート情報")
+            st.table(st.session_state["route_table"])
+
+        # 地図の表示（完全安定化）
+        if "map" in st.session_state:
+            st.write("### 地図")
+            
+            # 地図表示用のプレースホルダーを作成（一度だけ）
+            if "map_container" not in st.session_state:
+                st.session_state["map_container"] = st.empty()
+            
+            # 地図のHTMLを直接生成して表示（点滅防止）
+            if "map_html" not in st.session_state:
+                # FoliumマップをHTMLに変換
+                map_html = st.session_state["map"]._repr_html_()
+                st.session_state["map_html"] = map_html
+            
+            # プレースホルダーにHTMLを表示（再描画を防ぐ）
+            with st.session_state["map_container"]:
+                components.html(st.session_state["map_html"], width=725, height=500)
+
+# 管理者メニューの表示（条件付き）
+if st.session_state.get("show_admin", False):
+    st.markdown("---")
+    
+    # 管理者メニューのヘッダーと閉じるボタン
+    col1, col2 = st.columns([3, 1])
     with col1:
-        st.image(selected_data['画像1'], caption=selected_data['場所1'], width=150)
+        st.header("⚙️ 管理者メニュー")
     with col2:
-        st.write(selected_data['解説1'])
+        if st.button("❌ 閉じる", help="管理者メニューを閉じる"):
+            st.session_state["show_admin"] = False
+            st.rerun()
     
-    # 場所2の情報を表示
-    st.write(f"#### {selected_data['場所2']}")
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        st.image(selected_data['画像2'], caption=selected_data['場所2'], width=150)
-    with col2:
-        st.write(selected_data['解説2'])
-
-    # GPTコメントを表示
-    st.write("### ネリーからの提案")
-    st.write(adventure_comment)
-
-# 保存された表を表示
-if "route_table" in st.session_state:
-    st.write("### ルート情報")
-    st.table(st.session_state["route_table"])
-
-    # 地図の表示（完全安定化）
-    if "map" in st.session_state:
-        st.write("### 地図")
-        
-        # 地図表示用のプレースホルダーを作成（一度だけ）
-        if "map_container" not in st.session_state:
-            st.session_state["map_container"] = st.empty()
-        
-        # 地図のHTMLを直接生成して表示（点滅防止）
-        if "map_html" not in st.session_state:
-            # FoliumマップをHTMLに変換
-            map_html = st.session_state["map"]._repr_html_()
-            st.session_state["map_html"] = map_html
-        
-        # プレースホルダーにHTMLを表示（再描画を防ぐ）
-        with st.session_state["map_container"]:
-            components.html(st.session_state["map_html"], width=725, height=500)
-
-with tab2:
-    st.header("⚙️ 管理者メニュー")
+    st.markdown("---")
     
     # 管理者認証チェック
     if not st.session_state["admin_authenticated"]:
