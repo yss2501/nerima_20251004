@@ -463,11 +463,42 @@ else:
         
         adventure_comment = st.session_state["adventure_comment"]
 
+        # 画像表示用のヘルパー関数
+        def safe_display_image(image_path, caption, width=150):
+            """安全に画像を表示する関数"""
+            try:
+                import os
+                # 複数のパスパターンを試す
+                possible_paths = [
+                    image_path,
+                    image_path.replace('pic/', ''),
+                    f'./{image_path}',
+                    f'./{image_path.replace("pic/", "")}'
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        st.image(path, caption=caption, width=width)
+                        return True
+                
+                # 画像が見つからない場合の代替表示
+                st.write("📷")
+                st.write(f"*{caption}*")
+                st.write("画像を準備中...")
+                return False
+                
+            except Exception as e:
+                # エラー時の代替表示
+                st.write("📷")
+                st.write(f"*{caption}*")
+                st.write("画像を準備中...")
+                return False
+
         # 場所1の情報を表示
         st.write(f"#### {selected_data['場所1']}")
         col1, col2 = st.columns([1, 3])  # カラムを分割してレイアウト調整
         with col1:
-            st.image(selected_data['画像1'], caption=selected_data['場所1'], width=150)
+            safe_display_image(selected_data['画像1'], selected_data['場所1'])
         with col2:
             st.write(selected_data['解説1'])
         
@@ -475,7 +506,7 @@ else:
         st.write(f"#### {selected_data['場所2']}")
         col1, col2 = st.columns([1, 3])
         with col1:
-            st.image(selected_data['画像2'], caption=selected_data['場所2'], width=150)
+            safe_display_image(selected_data['画像2'], selected_data['場所2'])
         with col2:
             st.write(selected_data['解説2'])
 
