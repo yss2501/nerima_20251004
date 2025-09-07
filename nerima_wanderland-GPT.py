@@ -303,9 +303,19 @@ with tab1:
 
     if search_button:
         st.session_state["search_completed"] = True
-        # 新しい検索時はコメントをリセット
+        # 新しい検索時はコメントと地図をリセット
         if "adventure_comment" in st.session_state:
             del st.session_state["adventure_comment"]
+        if "map" in st.session_state:
+            del st.session_state["map"]
+        if "route_table" in st.session_state:
+            del st.session_state["route_table"]
+        if "route_coords1" in st.session_state:
+            del st.session_state["route_coords1"]
+        if "route_coords2" in st.session_state:
+            del st.session_state["route_coords2"]
+        if "route_coords3" in st.session_state:
+            del st.session_state["route_coords3"]
 
         if selected_mood:
             selected_data = data[data["今の気持ち"] == selected_mood].iloc[0]
@@ -387,38 +397,40 @@ with tab1:
                     st.session_state["route_coords2"] = route_coords2
                     st.session_state["route_coords3"] = route_coords3
 
-                    # 移動時間を取得
-                    duration1 = data1["routes"][0]["legs"][0]["duration"]["text"]
-                    duration2 = data2["routes"][0]["legs"][0]["duration"]["text"]
-                    duration3 = data3["routes"][0]["legs"][0]["duration"]["text"]
+                    # 移動時間を取得（一度だけ生成）
+                    if "route_table" not in st.session_state:
+                        duration1 = data1["routes"][0]["legs"][0]["duration"]["text"]
+                        duration2 = data2["routes"][0]["legs"][0]["duration"]["text"]
+                        duration3 = data3["routes"][0]["legs"][0]["duration"]["text"]
 
-                    st.session_state["route_table"] = pd.DataFrame({
-                        "出発地": [fixed_origin, selected_data["場所1"], selected_data["場所2"]],
-                        "目的地": [selected_data["場所1"], selected_data["場所2"], fixed_origin],
-                        "所要時間": [duration1, duration2, duration3]
-                    })
+                        st.session_state["route_table"] = pd.DataFrame({
+                            "出発地": [fixed_origin, selected_data["場所1"], selected_data["場所2"]],
+                            "目的地": [selected_data["場所1"], selected_data["場所2"], fixed_origin],
+                            "所要時間": [duration1, duration2, duration3]
+                        })
 
-                    # 地図データを保存
-                    m = folium.Map(location=route_coords1[0], zoom_start=13)
-                    folium.PolyLine(route_coords1, color="blue", weight=5, opacity=0.7).add_to(m)
-                    folium.PolyLine(route_coords2, color="purple", weight=5, opacity=0.7).add_to(m)
-                    folium.PolyLine(route_coords3, color="red", weight=5, opacity=0.7).add_to(m)
+                    # 地図データを保存（一度だけ生成）
+                    if "map" not in st.session_state:
+                        m = folium.Map(location=route_coords1[0], zoom_start=13)
+                        folium.PolyLine(route_coords1, color="blue", weight=5, opacity=0.7).add_to(m)
+                        folium.PolyLine(route_coords2, color="purple", weight=5, opacity=0.7).add_to(m)
+                        folium.PolyLine(route_coords3, color="red", weight=5, opacity=0.7).add_to(m)
 
-                    # Add markers
-                    folium.Marker(
-                        location=route_coords1[0], popup="出発地: " + origin, icon=folium.Icon(color="green")
-                    ).add_to(m)
-                    folium.Marker(
-                        location=route_coords1[-1], popup="目的地1: " + selected_data["場所1"], icon=folium.Icon(color="orange")
-                    ).add_to(m)
-                    folium.Marker(
-                        location=route_coords2[-1], popup="目的地2: " + selected_data["場所2"], icon=folium.Icon(color="red")
-                    ).add_to(m)
-                    folium.Marker(
-                        location=route_coords3[-1], popup="戻り: " + origin, icon=folium.Icon(color="blue")
-                    ).add_to(m)
+                        # Add markers
+                        folium.Marker(
+                            location=route_coords1[0], popup="出発地: " + origin, icon=folium.Icon(color="green")
+                        ).add_to(m)
+                        folium.Marker(
+                            location=route_coords1[-1], popup="目的地1: " + selected_data["場所1"], icon=folium.Icon(color="orange")
+                        ).add_to(m)
+                        folium.Marker(
+                            location=route_coords2[-1], popup="目的地2: " + selected_data["場所2"], icon=folium.Icon(color="red")
+                        ).add_to(m)
+                        folium.Marker(
+                            location=route_coords3[-1], popup="戻り: " + origin, icon=folium.Icon(color="blue")
+                        ).add_to(m)
 
-                    st.session_state["map"] = m
+                        st.session_state["map"] = m
                     
     # メイン画面に状態を再表示
     if "selected_data" in st.session_state:
