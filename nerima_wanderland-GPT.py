@@ -5,13 +5,15 @@ import pandas as pd
 from datetime import datetime  # 日付取得用
 from streamlit_folium import st_folium
 import time
-import openai  # GPTコメント生成用ライブラリ
+from openai import OpenAI  # GPTコメント生成用ライブラリ（新しいバージョン）
 from PIL import Image  # 画像処理用ライブラリ
 import io
 
-# OpenAI APIキー（OpenRouter使用）
-openai.api_key = st.secrets["openai"]["api_key"]  # OpenRouterのAPIキー
-openai.api_base = "https://openrouter.ai/api/v1"  # OpenRouterのエンドポイント
+# OpenAIクライアントの初期化（OpenRouter使用）
+client = OpenAI(
+    api_key=st.secrets["openai"]["api_key"],
+    base_url="https://openrouter.ai/api/v1"
+)
 
 API_KEY = "AIzaSyAf_qxaXszMB2YmNUYrSlocBrf53b7Al6U"  # ここに有効なAPIキーを記入
 
@@ -107,14 +109,14 @@ def generate_gpt_comment(destinations):
             )}
         ]
 
-        # OpenAIのAPI呼び出し
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # または "gpt-4"
+        # OpenAIのAPI呼び出し（新しい形式）
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=messages,
             max_tokens=150,
             temperature=0.7
         )
-        return response['choices'][0]['message']['content'].strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"コメント生成中にエラーが発生しました: {e}"
 
