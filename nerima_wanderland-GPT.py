@@ -9,11 +9,28 @@ from openai import OpenAI  # GPTコメント生成用ライブラリ（新しい
 from PIL import Image  # 画像処理用ライブラリ
 import io
 
-# OpenAIクライアントの初期化（OpenRouter使用）
-client = OpenAI(
-    api_key=st.secrets["openai"]["api_key"],
-    base_url="https://openrouter.ai/api/v1"
-)
+# OpenRouterクライアントの初期化
+def get_openrouter_client():
+    """OpenRouterクライアントを取得"""
+    if "openai" not in st.secrets or "api_key" not in st.secrets["openai"]:
+        return None
+    
+    return OpenAI(
+        api_key=st.secrets["openai"]["api_key"],
+        base_url="https://openrouter.ai/api/v1"
+    )
+
+# 利用可能なAIモデル一覧（OpenRouter対応）
+AVAILABLE_MODELS = {
+    "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
+    "gpt-4o": "openai/gpt-4o", 
+    "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
+    "claude-3-haiku": "anthropic/claude-3-haiku",
+    "gemini-pro": "google/gemini-pro",
+    "llama-3.1-8b": "meta-llama/llama-3.1-8b-instruct",
+    "qwen-2.5-7b": "qwen/qwen-2.5-7b-instruct",
+    "deepseek-chat": "deepseek/deepseek-chat"
+}
 
 API_KEY = "AIzaSyAf_qxaXszMB2YmNUYrSlocBrf53b7Al6U"  # ここに有効なAPIキーを記入
 
@@ -96,11 +113,19 @@ def get_weather(url):
         return None
 
 # コメント生成関数
-def generate_gpt_comment(destinations):
+def generate_gpt_comment(destinations, model_name="claude-3-haiku"):
     try:
         # APIキーの存在チェック
         if "openai" not in st.secrets or "api_key" not in st.secrets["openai"]:
             return "⚠️ APIキーが設定されていません。管理者メニューで設定してください。"
+        
+        # OpenRouterクライアントを取得
+        client = get_openrouter_client()
+        if client is None:
+            return "⚠️ OpenRouterクライアントの初期化に失敗しました。"
+        
+        # モデル名を取得
+        model = AVAILABLE_MODELS.get(model_name, AVAILABLE_MODELS["claude-3-haiku"])
         
         # プロンプトの作成
         messages = [
@@ -113,12 +138,16 @@ def generate_gpt_comment(destinations):
             )}
         ]
 
-        # OpenAIのAPI呼び出し（新しい形式）
+        # OpenRouterのAPI呼び出し（複数モデル対応）
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=messages,
             max_tokens=150,
-            temperature=0.7
+            temperature=0.7,
+            extra_headers={
+                "HTTP-Referer": "https://nerima-wanderland.streamlit.app",
+                "X-Title": "練馬ワンダーランド"
+            }
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -341,8 +370,10 @@ with tab1:
         
         # GPTコメント生成（一度だけ実行）
         if "adventure_comment" not in st.session_state:
-            with st.spinner("コメントを生成中です。しばらくお待ちください..."):
-                st.session_state["adventure_comment"] = generate_gpt_comment(destinations)
+            # 選択されたモデルを取得（デフォルトはclaude-3-haiku）
+            selected_model = st.session_state.get("selected_model", "claude-3-haiku")
+            with st.spinner(f"コメントを生成中です（{selected_model}）..."):
+                st.session_state["adventure_comment"] = generate_gpt_comment(destinations, selected_model)
         
         adventure_comment = st.session_state["adventure_comment"]
 
@@ -597,6 +628,38 @@ with tab2:
             st.error("❌ APIキーが設定されていません")
         
         st.info("**APIキーの設定方法:**\n1. [OpenRouter](https://openrouter.ai/)でアカウント作成\n2. APIキーを生成\n3. Streamlit CloudのSecretsに設定")
+        
+        # AIモデル選択セクション
+        st.subheader("🤖 AIモデル選択")
+        
+        # デフォルトモデルを設定
+        if "selected_model" not in st.session_state:
+            st.session_state["selected_model"] = "claude-3-haiku"
+        
+        # モデル選択
+        selected_model = st.selectbox(
+            "使用するAIモデルを選択",
+            options=list(AVAILABLE_MODELS.keys()),
+            index=list(AVAILABLE_MODELS.keys()).index(st.session_state["selected_model"]),
+            help="コストと性能のバランスを考慮して選択してください"
+        )
+        
+        # モデル情報を表示
+        model_info = {
+            "claude-3-haiku": "🚀 高速・低コスト（推奨）",
+            "claude-3.5-sonnet": "🧠 高性能・中コスト",
+            "gpt-3.5-turbo": "⚡ OpenAI標準モデル",
+            "gpt-4o": "💎 OpenAI最高性能",
+            "gemini-pro": "🔍 Google Gemini",
+            "llama-3.1-8b": "🦙 Meta Llama（無料枠あり）",
+            "qwen-2.5-7b": "🌟 Alibaba Qwen",
+            "deepseek-chat": "🎯 DeepSeek（高品質）"
+        }
+        
+        st.info(f"**選択中のモデル:** {model_info.get(selected_model, selected_model)}")
+        
+        # モデルをセッションに保存
+        st.session_state["selected_model"] = selected_model
         
         st.markdown("---")
         
