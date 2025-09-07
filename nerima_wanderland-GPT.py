@@ -98,6 +98,10 @@ def get_weather(url):
 # コメント生成関数
 def generate_gpt_comment(destinations):
     try:
+        # APIキーの存在チェック
+        if "openai" not in st.secrets or "api_key" not in st.secrets["openai"]:
+            return "⚠️ APIキーが設定されていません。管理者メニューで設定してください。"
+        
         # プロンプトの作成
         messages = [
             {"role": "system", "content": "あなたは練馬の地元旅行ガイドのネリーです。"},
@@ -118,7 +122,15 @@ def generate_gpt_comment(destinations):
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"コメント生成中にエラーが発生しました: {e}"
+        error_msg = str(e)
+        if "401" in error_msg or "User not found" in error_msg:
+            return "⚠️ APIキーが無効です。OpenRouterでAPIキーを確認してください。"
+        elif "429" in error_msg or "rate limit" in error_msg.lower():
+            return "⚠️ APIの使用制限に達しました。しばらく待ってから再試行してください。"
+        elif "403" in error_msg or "forbidden" in error_msg.lower():
+            return "⚠️ APIアクセスが拒否されました。APIキーの権限を確認してください。"
+        else:
+            return f"⚠️ コメント生成中にエラーが発生しました: {error_msg}"
 
 # CSVデータを読み込み（文字化け対応）
 try:
@@ -570,7 +582,52 @@ with tab2:
         
         st.markdown("---")
         
+        # APIキー管理セクション
+        st.subheader("🔑 APIキー管理")
+        
+        # 現在のAPIキー状態を表示
+        if "openai" in st.secrets and "api_key" in st.secrets["openai"]:
+            api_key = st.secrets["openai"]["api_key"]
+            if api_key.startswith("sk-or-v1-"):
+                st.success("✅ OpenRouter APIキーが設定されています")
+                st.info(f"キー: {api_key[:20]}...")
+            else:
+                st.warning("⚠️ APIキーの形式が正しくない可能性があります")
+        else:
+            st.error("❌ APIキーが設定されていません")
+        
+        st.info("**APIキーの設定方法:**\n1. [OpenRouter](https://openrouter.ai/)でアカウント作成\n2. APIキーを生成\n3. Streamlit CloudのSecretsに設定")
+        
+        st.markdown("---")
+        
         # システム情報
         st.subheader("ℹ️ システム情報")
         st.write(f"**現在のデータ件数:** {len(data)} 件")
         st.write(f"**利用可能な気分:** {', '.join(data['今の気持ち'].unique()) if '今の気持ち' in data.columns else 'なし'}")
+        
+        # APIキー設定の詳細説明
+        with st.expander("🔧 APIキー設定の詳細"):
+            st.markdown("""
+            **Streamlit CloudでのAPIキー設定:**
+            
+            1. **Streamlit Cloudにアクセス**
+               - [https://share.streamlit.io/](https://share.streamlit.io/)
+            
+            2. **アプリの管理画面を開く**
+               - 「Manage App」をクリック
+            
+            3. **Secrets設定**
+               - 「Settings」→「Secrets」
+               - 以下を追加:
+               ```toml
+               [openai]
+               api_key = "sk-or-v1-あなたのAPIキー"
+               
+               [admin]
+               password = "admin123"
+               ```
+            
+            4. **保存して再起動**
+               - 「Save」をクリック
+               - 「Reboot app」をクリック
+            """)
