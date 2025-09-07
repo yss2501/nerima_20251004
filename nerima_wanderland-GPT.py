@@ -127,13 +127,25 @@ def generate_gpt_comment(destinations, model_name="claude-3-haiku"):
         # モデル名を取得
         model = AVAILABLE_MODELS.get(model_name, AVAILABLE_MODELS["claude-3-haiku"])
         
-        # プロンプトの作成
+        # プロンプトの作成（文字エンコーディング対応）
+        def safe_encode(text):
+            """テキストを安全にエンコード"""
+            if isinstance(text, str):
+                return text.encode('utf-8').decode('utf-8')
+            return str(text)
+        
+        # 場所情報を安全にエンコード
+        place1_name = safe_encode(destinations[0]['場所'])
+        place1_desc = safe_encode(destinations[0]['解説'])
+        place2_name = safe_encode(destinations[1]['場所'])
+        place2_desc = safe_encode(destinations[1]['解説'])
+        
         messages = [
             {"role": "system", "content": "あなたは練馬の地元旅行ガイドのネリーです。"},
             {"role": "user", "content": (
                 f"以下の情報を元に、場所1と場所2を組み合わせた冒険や旅行の提案を、100字以内でユニークでわくわくするコメントを作成してください。\n\n" +
-                f"場所1: {destinations[0]['場所']}\n解説: {destinations[0]['解説']}\n\n" +
-                f"場所2: {destinations[1]['場所']}\n解説: {destinations[1]['解説']}\n\n" +
+                f"場所1: {place1_name}\n解説: {place1_desc}\n\n" +
+                f"場所2: {place2_name}\n解説: {place2_desc}\n\n" +
                 "まとめコメント:"
             )}
         ]
@@ -146,10 +158,13 @@ def generate_gpt_comment(destinations, model_name="claude-3-haiku"):
             temperature=0.7,
             extra_headers={
                 "HTTP-Referer": "https://nerima-wanderland.streamlit.app",
-                "X-Title": "練馬ワンダーランド"
+                "X-Title": "Nerima Wanderland",
+                "Content-Type": "application/json; charset=utf-8"
             }
         )
         return response.choices[0].message.content.strip()
+    except UnicodeEncodeError as e:
+        return "⚠️ 文字エンコーディングエラーが発生しました。データの文字コードを確認してください。"
     except Exception as e:
         error_msg = str(e)
         if "401" in error_msg or "User not found" in error_msg:
@@ -158,6 +173,8 @@ def generate_gpt_comment(destinations, model_name="claude-3-haiku"):
             return "⚠️ APIの使用制限に達しました。しばらく待ってから再試行してください。"
         elif "403" in error_msg or "forbidden" in error_msg.lower():
             return "⚠️ APIアクセスが拒否されました。APIキーの権限を確認してください。"
+        elif "ascii" in error_msg.lower() and "codec" in error_msg.lower():
+            return "⚠️ 文字エンコーディングエラーが発生しました。日本語文字の処理に問題があります。"
         else:
             return f"⚠️ コメント生成中にエラーが発生しました: {error_msg}"
 
@@ -170,8 +187,18 @@ except UnicodeDecodeError:
         # Shift_JISを試行
         data = pd.read_csv("destinations.csv", encoding='shift_jis')
     except UnicodeDecodeError:
-        # CP932を試行
-        data = pd.read_csv("destinations.csv", encoding='cp932')
+        try:
+            # CP932を試行
+            data = pd.read_csv("destinations.csv", encoding='cp932')
+        except UnicodeDecodeError:
+            # 最後の手段としてlatin-1を試行
+            data = pd.read_csv("destinations.csv", encoding='latin-1')
+except FileNotFoundError:
+    st.error("destinations.csvファイルが見つかりません。")
+    st.stop()
+except Exception as e:
+    st.error(f"CSVファイルの読み込み中にエラーが発生しました: {str(e)}")
+    st.stop()
 
 # 固定された出発地
 fixed_origin = "豊島園駅"
