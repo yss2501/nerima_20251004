@@ -112,6 +112,42 @@ def get_weather(url):
         st.sidebar.error("天気情報を取得できませんでした。")
         return None
 
+# APIキーテスト関数
+def test_api_key(api_key):
+    """APIキーの有効性をテスト"""
+    try:
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1"
+        )
+        
+        # 簡単なテストリクエスト
+        response = client.chat.completions.create(
+            model="openai/gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=10,
+            extra_headers={
+                "HTTP-Referer": "https://nerima-wanderland.streamlit.app",
+                "X-Title": "Nerima Wanderland"
+            }
+        )
+        
+        return {
+            "success": True,
+            "model": "gpt-3.5-turbo",
+            "response": response.choices[0].message.content
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "401" in error_msg or "User not found" in error_msg:
+            return {"success": False, "error": "APIキーが無効です"}
+        elif "429" in error_msg:
+            return {"success": False, "error": "レート制限に達しました"}
+        elif "insufficient" in error_msg.lower():
+            return {"success": False, "error": "クレジット残高が不足しています"}
+        else:
+            return {"success": False, "error": f"エラー: {error_msg}"}
+
 # コメント生成関数
 def generate_gpt_comment(destinations, model_name="claude-3-haiku"):
     try:
@@ -649,8 +685,18 @@ with tab2:
             if api_key.startswith("sk-or-v1-"):
                 st.success("✅ OpenRouter APIキーが設定されています")
                 st.info(f"キー: {api_key[:20]}...")
+                
+                # APIキーの診断ボタン
+                if st.button("🔍 APIキーをテスト", help="APIキーの有効性をテストします"):
+                    with st.spinner("APIキーをテスト中..."):
+                        test_result = test_api_key(api_key)
+                        if test_result["success"]:
+                            st.success(f"✅ APIキーは有効です！使用モデル: {test_result['model']}")
+                        else:
+                            st.error(f"❌ APIキーエラー: {test_result['error']}")
             else:
                 st.warning("⚠️ APIキーの形式が正しくない可能性があります")
+                st.info("正しい形式: `sk-or-v1-` で始まる必要があります")
         else:
             st.error("❌ APIキーが設定されていません")
         
@@ -720,4 +766,31 @@ with tab2:
             4. **保存して再起動**
                - 「Save」をクリック
                - 「Reboot app」をクリック
+            """)
+        
+        # トラブルシューティング
+        with st.expander("🚨 トラブルシューティング"):
+            st.markdown("""
+            **APIキーエラーの解決方法:**
+            
+            **1. APIキーの形式確認**
+            - 正しい形式: `sk-or-v1-` で始まる
+            - 余分なスペースや改行がないか確認
+            
+            **2. OpenRouterでの確認**
+            - [OpenRouter Dashboard](https://openrouter.ai/keys) にログイン
+            - APIキーが有効か確認
+            - 必要に応じて新しいキーを生成
+            
+            **3. クレジット残高確認**
+            - OpenRouterでクレジット残高を確認
+            - 不足している場合は追加購入
+            
+            **4. レート制限確認**
+            - 無料枠: 1分20回、1日50回
+            - 有料: 1日1000回まで
+            
+            **5. モデルアクセス権限**
+            - 使用するモデルが許可されているか確認
+            - 無料モデル: `openai/gpt-3.5-turbo`, `meta-llama/llama-3.1-8b-instruct`
             """)
