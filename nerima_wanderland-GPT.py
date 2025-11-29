@@ -6,21 +6,26 @@ from datetime import datetime  # 日付取得用
 from streamlit_folium import st_folium
 import streamlit.components.v1 as components  # HTML表示用
 import time
-import openai  # ★ OpenAIクライアント（旧版ライブラリ対応）
+from openai import OpenAI  # OpenAI v1系 クライアント
 from PIL import Image  # 画像処理用ライブラリ
 import io
 
 # OpenRouterクライアントの初期化
 def get_openrouter_client():
-    """OpenRouterクライアントを取得（openai v0系互換）"""
+    """OpenRouterクライアントを取得（openai v1系）"""
     if "openai" not in st.secrets or "api_key" not in st.secrets["openai"]:
         return None
     
-    # OpenRouter向けの設定
-    openai.api_key = st.secrets["openai"]["api_key"]
-    # openai v0 系では api_base を使う
-    openai.api_base = "https://openrouter.ai/api/v1"
-    return openai
+    client = OpenAI(
+        api_key=st.secrets["openai"]["api_key"],
+        base_url="https://openrouter.ai/api/v1",
+        # 必要であればデフォルトヘッダもここで付与可能
+        # default_headers={
+        #     "HTTP-Referer": "https://nerima-wanderland.streamlit.app",
+        #     "X-Title": "Nerima Wanderland"
+        # }
+    )
+    return client
 
 # 利用可能なAIモデル一覧（OpenRouter対応）
 AVAILABLE_MODELS = {
@@ -128,15 +133,15 @@ def get_weather(url):
 
 # APIキーテスト関数
 def test_api_key(api_key):
-    """APIキーの有効性をテスト（openai v0系 + OpenRouter）"""
+    """APIキーの有効性をテスト（OpenAI v1 + OpenRouter）"""
     try:
-        # 一時的に OpenRouter 設定
-        client = openai
-        client.api_key = api_key
-        client.api_base = "https://openrouter.ai/api/v1"
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
 
         # 簡単なテストリクエスト
-        response = client.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="openai/gpt-3.5-turbo",
             messages=[{"role": "user", "content": "Hello"}],
             max_tokens=10,
@@ -144,8 +149,8 @@ def test_api_key(api_key):
         
         return {
             "success": True,
-            "model": "gpt-3.5-turbo",
-            "response": response.choices[0].message["content"]
+            "model": response.model,
+            "response": response.choices[0].message.content
         }
     except Exception as e:
         error_msg = str(e)
@@ -157,7 +162,6 @@ def test_api_key(api_key):
             return {"success": False, "error": "クレジット残高が不足しています"}
         else:
             return {"success": False, "error": f"エラー: {error_msg}"}
-
 # コメント生成関数
 def generate_gpt_comment(destinations, model_name="llama-4-maverick (無料)"):
     try:
@@ -198,14 +202,14 @@ def generate_gpt_comment(destinations, model_name="llama-4-maverick (無料)"):
         ]
 
         # OpenRouterのAPI呼び出し（openai v0系）
-        response = client.ChatCompletion.create(
+        response = client.chat.completions.create(
             model=model,
             messages=messages,
             max_tokens=150,
             temperature=0.7,
         )
-        # v0系では message は dict
-        return response.choices[0].message["content"].strip()
+        # v1系では message はオブジェクト
+        return response.choices[0].message.content.strip()
     except UnicodeEncodeError:
         return "⚠️ 文字エンコーディングエラーが発生しました。データの文字コードを確認してください。"
     except Exception as e:
