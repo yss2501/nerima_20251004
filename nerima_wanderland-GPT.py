@@ -19,20 +19,14 @@ def get_openrouter_client():
     client = OpenAI(
         api_key=st.secrets["openai"]["api_key"],
         base_url="https://openrouter.ai/api/v1",
-        # 必要であればデフォルトヘッダもここで付与可能
-        # default_headers={
-        #     "HTTP-Referer": "https://nerima-wanderland.streamlit.app",
-        #     "X-Title": "Nerima Wanderland"
-        # }
     )
     return client
 
 # 利用可能なAIモデル一覧（OpenRouter対応）
 AVAILABLE_MODELS = {
-    # とりあえずこれをデフォルトに（OpenRouter 経由の gpt-3.5）
+    # デフォルト（OpenRouter 経由の gpt-3.5）
     "gpt-3.5-turbo (推奨)": "openai/gpt-3.5-turbo",
-
-    # 他にも試したい場合の候補（存在しない場合はコメントアウト）
+    # 他にも試したい場合の候補
     "llama-3.1-8b": "meta-llama/llama-3.1-8b-instruct",
     "deepseek-chat": "deepseek/deepseek-chat",
 }
@@ -148,6 +142,7 @@ def test_api_key(api_key):
             return {"success": False, "error": "クレジット残高が不足しています"}
         else:
             return {"success": False, "error": f"エラー: {error_msg}"}
+
 # コメント生成関数
 def generate_gpt_comment(destinations, model_name="gpt-3.5-turbo (推奨)"):
     try:
@@ -160,8 +155,10 @@ def generate_gpt_comment(destinations, model_name="gpt-3.5-turbo (推奨)"):
         if client is None:
             return "⚠️ OpenRouterクライアントの初期化に失敗しました。"
         
-        # モデル名を取得
-        model = AVAILABLE_MODELS.get(model_name, AVAILABLE_MODELS["llama-4-maverick (無料)"])
+        # モデル名を取得（不正なキーの場合はデフォルトにフォールバック）
+        if model_name not in AVAILABLE_MODELS:
+            model_name = "gpt-3.5-turbo (推奨)"
+        model = AVAILABLE_MODELS[model_name]
         
         # プロンプトの作成（文字エンコーディング対応）
         def safe_encode(text):
@@ -187,7 +184,7 @@ def generate_gpt_comment(destinations, model_name="gpt-3.5-turbo (推奨)"):
             )}
         ]
 
-        # OpenRouterのAPI呼び出し（openai v0系）
+        # OpenRouterのAPI呼び出し（OpenAI v1系）
         response = client.chat.completions.create(
             model=model,
             messages=messages,
@@ -431,99 +428,99 @@ else:
 
                     st.session_state["map"] = m
                 
-    # メイン画面に状態を再表示（管理者メニューが表示されていない場合のみ）
-    if "selected_data" in st.session_state and not st.session_state.get("show_admin", False):
-        selected_data = st.session_state["selected_data"]
+# メイン画面に状態を再表示（管理者メニューが表示されていない場合のみ）
+if "selected_data" in st.session_state and not st.session_state.get("show_admin", False):
+    selected_data = st.session_state["selected_data"]
 
-        st.write("### あなたの気分にあった冒険プランは、こちらです！")
-        # 目的地情報リスト
-        destinations = [
-            {"場所": selected_data["場所1"], "解説": selected_data["解説1"]},
-            {"場所": selected_data["場所2"], "解説": selected_data["解説2"]},
-        ]
-        
-        # GPTコメント生成（一度だけ実行）
-        if "adventure_comment" not in st.session_state:
-            # 選択されたモデルを取得（デフォルトはllama-4-maverick）
-            selected_model = st.session_state.get("selected_model", "llama-4-maverick (無料)")
-            with st.spinner(f"コメントを生成中です（{selected_model}）..."):
-                st.session_state["adventure_comment"] = generate_gpt_comment(destinations, selected_model)
-        
-        adventure_comment = st.session_state["adventure_comment"]
+    st.write("### あなたの気分にあった冒険プランは、こちらです！")
+    # 目的地情報リスト
+    destinations = [
+        {"場所": selected_data["場所1"], "解説": selected_data["解説1"]},
+        {"場所": selected_data["場所2"], "解説": selected_data["解説2"]},
+    ]
+    
+    # GPTコメント生成（一度だけ実行）
+    if "adventure_comment" not in st.session_state:
+        # 選択されたモデルを取得（デフォルトは gpt-3.5-turbo (推奨)）
+        selected_model = st.session_state.get("selected_model", "gpt-3.5-turbo (推奨)")
+        with st.spinner(f"コメントを生成中です（{selected_model}）..."):
+            st.session_state["adventure_comment"] = generate_gpt_comment(destinations, selected_model)
+    
+    adventure_comment = st.session_state["adventure_comment"]
 
-        # 画像表示用のヘルパー関数
-        def safe_display_image(image_path, caption, width=150):
-            """安全に画像を表示する関数"""
-            try:
-                import os
-                # 複数のパスパターンを試す
-                possible_paths = [
-                    image_path,
-                    image_path.replace('pic/', ''),
-                    f'./{image_path}',
-                    f'./{image_path.replace("pic/", "")}'
-                ]
-                
-                for path in possible_paths:
-                    if os.path.exists(path):
-                        st.image(path, caption=caption, width=width)
-                        return True
-                
-                # 画像が見つからない場合の代替表示
-                st.write("📷")
-                st.write(f"*{caption}*")
-                st.write("画像を準備中...")
-                return False
-                
-            except Exception:
-                # エラー時の代替表示
-                st.write("📷")
-                st.write(f"*{caption}*")
-                st.write("画像を準備中...")
-                return False
-
-        # 場所1の情報を表示
-        st.write(f"#### {selected_data['場所1']}")
-        col1, col2 = st.columns([1, 3])  # カラムを分割してレイアウト調整
-        with col1:
-            safe_display_image(selected_data['画像1'], selected_data['場所1'])
-        with col2:
-            st.write(selected_data['解説1'])
-        
-        # 場所2の情報を表示
-        st.write(f"#### {selected_data['場所2']}")
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            safe_display_image(selected_data['画像2'], selected_data['場所2'])
-        with col2:
-            st.write(selected_data['解説2'])
-
-        # GPTコメントを表示
-        st.write("### ネリーからの提案")
-        st.write(adventure_comment)
-
-        # 保存された表を表示
-        if "route_table" in st.session_state:
-            st.write("### ルート情報")
-            st.table(st.session_state["route_table"])
-
-        # 地図の表示（完全安定化）
-        if "map" in st.session_state:
-            st.write("### 地図")
+    # 画像表示用のヘルパー関数
+    def safe_display_image(image_path, caption, width=150):
+        """安全に画像を表示する関数"""
+        try:
+            import os
+            # 複数のパスパターンを試す
+            possible_paths = [
+                image_path,
+                image_path.replace('pic/', ''),
+                f'./{image_path}',
+                f'./{image_path.replace("pic/", "")}'
+            ]
             
-            # 地図表示用のプレースホルダーを作成（一度だけ）
-            if "map_container" not in st.session_state:
-                st.session_state["map_container"] = st.empty()
+            for path in possible_paths:
+                if os.path.exists(path):
+                    st.image(path, caption=caption, width=width)
+                    return True
             
-            # 地図のHTMLを直接生成して表示（点滅防止）
-            if "map_html" not in st.session_state:
-                # FoliumマップをHTMLに変換
-                map_html = st.session_state["map"]._repr_html_()
-                st.session_state["map_html"] = map_html
+            # 画像が見つからない場合の代替表示
+            st.write("📷")
+            st.write(f"*{caption}*")
+            st.write("画像を準備中...")
+            return False
             
-            # プレースホルダーにHTMLを表示（再描画を防ぐ）
-            with st.session_state["map_container"]:
-                components.html(st.session_state["map_html"], width=725, height=500)
+        except Exception:
+            # エラー時の代替表示
+            st.write("📷")
+            st.write(f"*{caption}*")
+            st.write("画像を準備中...")
+            return False
+
+    # 場所1の情報を表示
+    st.write(f"#### {selected_data['場所1']}")
+    col1, col2 = st.columns([1, 3])  # カラムを分割してレイアウト調整
+    with col1:
+        safe_display_image(selected_data['画像1'], selected_data['場所1'])
+    with col2:
+        st.write(selected_data['解説1'])
+    
+    # 場所2の情報を表示
+    st.write(f"#### {selected_data['場所2']}")
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        safe_display_image(selected_data['画像2'], selected_data['場所2'])
+    with col2:
+        st.write(selected_data['解説2'])
+
+    # GPTコメントを表示
+    st.write("### ネリーからの提案")
+    st.write(adventure_comment)
+
+    # 保存された表を表示
+    if "route_table" in st.session_state:
+        st.write("### ルート情報")
+        st.table(st.session_state["route_table"])
+
+    # 地図の表示（完全安定化）
+    if "map" in st.session_state:
+        st.write("### 地図")
+        
+        # 地図表示用のプレースホルダーを作成（一度だけ）
+        if "map_container" not in st.session_state:
+            st.session_state["map_container"] = st.empty()
+        
+        # 地図のHTMLを直接生成して表示（点滅防止）
+        if "map_html" not in st.session_state:
+            # FoliumマップをHTMLに変換
+            map_html = st.session_state["map"]._repr_html_()
+            st.session_state["map_html"] = map_html
+        
+        # プレースホルダーにHTMLを表示（再描画を防ぐ）
+        with st.session_state["map_container"]:
+            components.html(st.session_state["map_html"], width=725, height=500)
 
 # 管理者メニューの表示（条件付き）
 if st.session_state.get("show_admin", False):
@@ -768,7 +765,7 @@ if st.session_state.get("show_admin", False):
         else:
             st.error("❌ APIキーが設定されていません")
         
-        st.info("**APIキーの設定方法:**\n1. [OpenRouter](https://openrouter.ai/)でアカウント作成\n2. APIキーを生成\n3. Streamlit CloudのSecretsに設定")
+        st.info("**APIキーの設定方法:**\n1. OpenRouterでアカウント作成\n2. APIキーを生成\n3. Streamlit CloudのSecretsに設定")
         
         # AIモデル選択セクション
         st.subheader("🤖 AIモデル選択")
@@ -787,23 +784,9 @@ if st.session_state.get("show_admin", False):
         
         # モデル情報を表示
         model_info = {
-            "llama-4-maverick (無料)": "🚀 Meta最新の無料モデル（推奨）",
-            "llama-4-scout (無料)": "🎯 Meta無料モデル・高速処理",
-            "deepseek-chat-v3 (無料)": "🧠 DeepSeek無料モデル・高品質",
-            "deepseek-r1 (無料)": "⚡ DeepSeek無料モデル・推論特化",
-            "gemini-2.5-pro (無料)": "🌟 Google無料モデル・高性能",
-            "gemini-2.0-flash (無料)": "⚡ Google無料モデル・高速",
-            "llama-3.3-70b (無料)": "🏆 Meta無料モデル・大規模",
-            "gemma-3-27b (無料)": "💎 Google無料モデル・軽量",
-            "qwq-32b (無料)": "🎨 Qwen無料モデル・創造的",
-            "gpt-3.5-turbo": "💰 OpenAI有料モデル・標準",
-            "gpt-4o": "💎 OpenAI有料モデル・最高性能",
-            "claude-3.5-sonnet": "🧠 Anthropic有料モデル・高品質",
-            "claude-3-haiku": "⚡ Anthropic有料モデル・高速",
-            "gemini-pro": "🌟 Google有料モデル・高性能",
-            "llama-3.1-8b": "🏃 Meta有料モデル・軽量",
-            "qwen-2.5-7b": "🎯 Qwen有料モデル・効率的",
-            "deepseek-chat": "🧠 DeepSeek有料モデル・高品質"
+            "gpt-3.5-turbo (推奨)": "💰 OpenAIモデル・標準（OpenRouter経由）",
+            "llama-3.1-8b": "🏃 Metaモデル・軽量高速",
+            "deepseek-chat": "🧠 DeepSeekモデル・高品質チャット",
         }
         
         st.info(f"**選択中のモデル:** {model_info.get(selected_model, selected_model)}")
@@ -823,15 +806,9 @@ if st.session_state.get("show_admin", False):
             st.markdown("""
             **Streamlit CloudでのAPIキー設定:**
             
-            1. **Streamlit Cloudにアクセス**
-               - https://share.streamlit.io/
-            
-            2. **アプリの管理画面を開く**
-               - 「Manage App」をクリック
-            
-            3. **Secrets設定**
-               - 「Settings」→「Secrets」
-               - 以下を追加:
+            1. Streamlit Cloudにアクセス
+            2. アプリの「Manage App」を開く
+            3. 「Settings」→「Secrets」で以下を追加:
                ```toml
                [openai]
                api_key = "sk-or-v1-あなたのAPIキー"
@@ -839,10 +816,7 @@ if st.session_state.get("show_admin", False):
                [admin]
                password = "admin123"
                ```
-            
-            4. **保存して再起動**
-               - 「Save」をクリック
-               - 「Reboot app」をクリック
+            4. 保存してアプリを再起動
             """)
         
         # トラブルシューティング
@@ -850,23 +824,21 @@ if st.session_state.get("show_admin", False):
             st.markdown("""
             **APIキーエラーの解決方法:**
             
-            1. **APIキーの形式確認**
+            1. APIキーの形式確認
                - 正しい形式: `sk-or-v1-` で始まる
                - 余分なスペースや改行がないか確認
             
-            2. **OpenRouterでの確認**
-               - OpenRouter Dashboard にログイン
-               - APIキーが有効か確認
+            2. OpenRouterでの確認
+               - Dashboard にログインし、APIキーが有効か確認
                - 必要に応じて新しいキーを生成
             
-            3. **クレジット残高確認**
+            3. クレジット残高確認
                - OpenRouterでクレジット残高を確認
-               - 不足している場合は追加購入
             
-            4. **レート制限確認**
+            4. レート制限確認
                - 無料枠・有料枠の制限を確認
             
-            5. **モデルアクセス権限**
+            5. モデルアクセス権限
                - 使用するモデルが許可されているか確認
             """)
 
