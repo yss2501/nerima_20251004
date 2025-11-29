@@ -176,7 +176,7 @@ def generate_gpt_comment(destinations, model_name="gpt-3.5-turbo (推奨)"):
         messages = [
             {"role": "system", "content": "あなたは練馬の地元旅行ガイドのネリーです。"},
             {"role": "user", "content": (
-                "あなたは、練馬に住む魔法使いのネリーです。"
+                "あなたは、練馬に住む、練馬が大好きなネリーさんです。"
                 "以下の情報を元に、場所1と場所2を組み合わせた冒険や旅行の提案を、"
                 "200字以内でユニークでわくわくするコメントを作成してください。\n\n"
                 f"場所1: {place1_name}\n解説: {place1_desc}\n\n"
