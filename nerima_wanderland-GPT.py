@@ -29,26 +29,12 @@ def get_openrouter_client():
 
 # 利用可能なAIモデル一覧（OpenRouter対応）
 AVAILABLE_MODELS = {
-    # 無料モデル（推奨）
-    "llama-4-maverick (無料)": "meta-llama/llama-4-maverick:free",
-    "llama-4-scout (無料)": "meta-llama/llama-4-scout:free", 
-    "deepseek-chat-v3 (無料)": "deepseek/deepseek-chat-v3-0324:free",
-    "deepseek-r1 (無料)": "deepseek/deepseek-r1:free",
-    "gemini-2.5-pro (無料)": "google/gemini-2.5-pro-exp-03-25:free",
-    "gemini-2.0-flash (無料)": "google/gemini-2.0-flash-exp:free",
-    "llama-3.3-70b (無料)": "meta-llama/llama-3.3-70b-instruct:free",
-    "gemma-3-27b (無料)": "google/gemma-3-27b-it:free",
-    "qwq-32b (無料)": "qwen/qwq-32b:free",
-    
-    # 有料モデル
-    "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
-    "gpt-4o": "openai/gpt-4o", 
-    "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
-    "claude-3-haiku": "anthropic/claude-3-haiku",
-    "gemini-pro": "google/gemini-pro",
+    # とりあえずこれをデフォルトに（OpenRouter 経由の gpt-3.5）
+    "gpt-3.5-turbo (推奨)": "openai/gpt-3.5-turbo",
+
+    # 他にも試したい場合の候補（存在しない場合はコメントアウト）
     "llama-3.1-8b": "meta-llama/llama-3.1-8b-instruct",
-    "qwen-2.5-7b": "qwen/qwen-2.5-7b-instruct",
-    "deepseek-chat": "deepseek/deepseek-chat"
+    "deepseek-chat": "deepseek/deepseek-chat",
 }
 
 API_KEY = "AIzaSyAf_qxaXszMB2YmNUYrSlocBrf53b7Al6U"  # ここに有効なGoogle Maps APIキーを記入
@@ -163,7 +149,7 @@ def test_api_key(api_key):
         else:
             return {"success": False, "error": f"エラー: {error_msg}"}
 # コメント生成関数
-def generate_gpt_comment(destinations, model_name="llama-4-maverick (無料)"):
+def generate_gpt_comment(destinations, model_name="gpt-3.5-turbo (推奨)"):
     try:
         # APIキーの存在チェック
         if "openai" not in st.secrets or "api_key" not in st.secrets["openai"]:
@@ -789,7 +775,7 @@ if st.session_state.get("show_admin", False):
         
         # デフォルトモデルを設定
         if "selected_model" not in st.session_state:
-            st.session_state["selected_model"] = "llama-4-maverick (無料)"
+        st.session_state["selected_model"] = "gpt-3.5-turbo (推奨)"
         
         # モデル選択
         selected_model = st.selectbox(
