@@ -6,20 +6,21 @@ from datetime import datetime  # 日付取得用
 from streamlit_folium import st_folium
 import streamlit.components.v1 as components  # HTML表示用
 import time
-from openai import OpenAI  # GPTコメント生成用ライブラリ（新しいバージョン）
+import openai  # ★ OpenAIクライアント（旧版ライブラリ対応）
 from PIL import Image  # 画像処理用ライブラリ
 import io
 
 # OpenRouterクライアントの初期化
 def get_openrouter_client():
-    """OpenRouterクライアントを取得"""
+    """OpenRouterクライアントを取得（openai v0系互換）"""
     if "openai" not in st.secrets or "api_key" not in st.secrets["openai"]:
         return None
     
-    return OpenAI(
-        api_key=st.secrets["openai"]["api_key"],
-        base_url="https://openrouter.ai/api/v1"
-    )
+    # OpenRouter向けの設定
+    openai.api_key = st.secrets["openai"]["api_key"]
+    # openai v0 系では api_base を使う
+    openai.api_base = "https://openrouter.ai/api/v1"
+    return openai
 
 # 利用可能なAIモデル一覧（OpenRouter対応）
 AVAILABLE_MODELS = {
@@ -45,7 +46,7 @@ AVAILABLE_MODELS = {
     "deepseek-chat": "deepseek/deepseek-chat"
 }
 
-API_KEY = "AIzaSyAf_qxaXszMB2YmNUYrSlocBrf53b7Al6U"  # ここに有効なAPIキーを記入
+API_KEY = "AIzaSyAf_qxaXszMB2YmNUYrSlocBrf53b7Al6U"  # ここに有効なGoogle Maps APIキーを記入
 
 # APIのURLと都市コード（東京固定）
 city_code = "130010"  # 東京の都市コード
@@ -127,28 +128,24 @@ def get_weather(url):
 
 # APIキーテスト関数
 def test_api_key(api_key):
-    """APIキーの有効性をテスト"""
+    """APIキーの有効性をテスト（openai v0系 + OpenRouter）"""
     try:
-        client = OpenAI(
-            api_key=api_key,
-            base_url="https://openrouter.ai/api/v1"
-        )
-        
+        # 一時的に OpenRouter 設定
+        client = openai
+        client.api_key = api_key
+        client.api_base = "https://openrouter.ai/api/v1"
+
         # 簡単なテストリクエスト
-        response = client.chat.completions.create(
+        response = client.ChatCompletion.create(
             model="openai/gpt-3.5-turbo",
             messages=[{"role": "user", "content": "Hello"}],
             max_tokens=10,
-            extra_headers={
-                "HTTP-Referer": "https://nerima-wanderland.streamlit.app",
-                "X-Title": "Nerima Wanderland"
-            }
         )
         
         return {
             "success": True,
             "model": "gpt-3.5-turbo",
-            "response": response.choices[0].message.content
+            "response": response.choices[0].message["content"]
         }
     except Exception as e:
         error_msg = str(e)
@@ -192,27 +189,24 @@ def generate_gpt_comment(destinations, model_name="llama-4-maverick (無料)"):
         messages = [
             {"role": "system", "content": "あなたは練馬の地元旅行ガイドのネリーです。"},
             {"role": "user", "content": (
-                f"以下の情報を元に、場所1と場所2を組み合わせた冒険や旅行の提案を、100字以内でユニークでわくわくするコメントを作成してください。\n\n" +
-                f"場所1: {place1_name}\n解説: {place1_desc}\n\n" +
-                f"場所2: {place2_name}\n解説: {place2_desc}\n\n" +
+                "以下の情報を元に、場所1と場所2を組み合わせた冒険や旅行の提案を、"
+                "100字以内でユニークでわくわくするコメントを作成してください。\n\n"
+                f"場所1: {place1_name}\n解説: {place1_desc}\n\n"
+                f"場所2: {place2_name}\n解説: {place2_desc}\n\n"
                 "まとめコメント:"
             )}
         ]
 
-        # OpenRouterのAPI呼び出し（複数モデル対応）
-        response = client.chat.completions.create(
+        # OpenRouterのAPI呼び出し（openai v0系）
+        response = client.ChatCompletion.create(
             model=model,
             messages=messages,
             max_tokens=150,
             temperature=0.7,
-            extra_headers={
-                "HTTP-Referer": "https://nerima-wanderland.streamlit.app",
-                "X-Title": "Nerima Wanderland",
-                "Content-Type": "application/json; charset=utf-8"
-            }
         )
-        return response.choices[0].message.content.strip()
-    except UnicodeEncodeError as e:
+        # v0系では message は dict
+        return response.choices[0].message["content"].strip()
+    except UnicodeEncodeError:
         return "⚠️ 文字エンコーディングエラーが発生しました。データの文字コードを確認してください。"
     except Exception as e:
         error_msg = str(e)
@@ -275,6 +269,7 @@ with st.sidebar:
         selected_mood = st.selectbox("今の気分を選んでください", data["今の気持ち"].unique())
     else:
         st.error("CSVファイルに「今の気持ち」カラムが見つかりません。")
+        selected_mood = None
     
     # 移動手段の選択肢を表示
     transport_mode = st.radio("移動手段を選んでください", ["徒歩", "自転車", "タクシー"])
@@ -319,26 +314,13 @@ else:
     if search_button:
         st.session_state["search_completed"] = True
         # 新しい検索時はコメントと地図をリセット
-        if "adventure_comment" in st.session_state:
-            del st.session_state["adventure_comment"]
-        if "map" in st.session_state:
-            del st.session_state["map"]
-        if "map_displayed" in st.session_state:
-            del st.session_state["map_displayed"]
-        if "map_placeholder" in st.session_state:
-            del st.session_state["map_placeholder"]
-        if "map_html" in st.session_state:
-            del st.session_state["map_html"]
-        if "map_container" in st.session_state:
-            del st.session_state["map_container"]
-        if "route_table" in st.session_state:
-            del st.session_state["route_table"]
-        if "route_coords1" in st.session_state:
-            del st.session_state["route_coords1"]
-        if "route_coords2" in st.session_state:
-            del st.session_state["route_coords2"]
-        if "route_coords3" in st.session_state:
-            del st.session_state["route_coords3"]
+        for key in [
+            "adventure_comment", "map", "map_displayed", "map_placeholder",
+            "map_html", "map_container", "route_table",
+            "route_coords1", "route_coords2", "route_coords3"
+        ]:
+            if key in st.session_state:
+                del st.session_state[key]
 
     if selected_mood:
         selected_data = data[data["今の気持ち"] == selected_mood].iloc[0]
@@ -379,7 +361,11 @@ else:
             data2 = res2.json()
             data3 = res3.json()
 
-            if "routes" in data1 and len(data1["routes"]) > 0 and "routes" in data2 and len(data2["routes"]) > 0 and "routes" in data3 and len(data3["routes"]) > 0:
+            if (
+                "routes" in data1 and len(data1["routes"]) > 0 and
+                "routes" in data2 and len(data2["routes"]) > 0 and
+                "routes" in data3 and len(data3["routes"]) > 0
+            ):
                 route1 = data1["routes"][0]["overview_polyline"]["points"]
                 route2 = data2["routes"][0]["overview_polyline"]["points"]
                 route3 = data3["routes"][0]["overview_polyline"]["points"]
@@ -499,7 +485,7 @@ else:
                 st.write("画像を準備中...")
                 return False
                 
-            except Exception as e:
+            except Exception:
                 # エラー時の代替表示
                 st.write("📷")
                 st.write(f"*{caption}*")
@@ -848,7 +834,7 @@ if st.session_state.get("show_admin", False):
             **Streamlit CloudでのAPIキー設定:**
             
             1. **Streamlit Cloudにアクセス**
-               - [https://share.streamlit.io/](https://share.streamlit.io/)
+               - https://share.streamlit.io/
             
             2. **アプリの管理画面を開く**
                - 「Manage App」をクリック
@@ -874,24 +860,23 @@ if st.session_state.get("show_admin", False):
             st.markdown("""
             **APIキーエラーの解決方法:**
             
-            **1. APIキーの形式確認**
-            - 正しい形式: `sk-or-v1-` で始まる
-            - 余分なスペースや改行がないか確認
+            1. **APIキーの形式確認**
+               - 正しい形式: `sk-or-v1-` で始まる
+               - 余分なスペースや改行がないか確認
             
-            **2. OpenRouterでの確認**
-            - [OpenRouter Dashboard](https://openrouter.ai/keys) にログイン
-            - APIキーが有効か確認
-            - 必要に応じて新しいキーを生成
+            2. **OpenRouterでの確認**
+               - OpenRouter Dashboard にログイン
+               - APIキーが有効か確認
+               - 必要に応じて新しいキーを生成
             
-            **3. クレジット残高確認**
-            - OpenRouterでクレジット残高を確認
-            - 不足している場合は追加購入
+            3. **クレジット残高確認**
+               - OpenRouterでクレジット残高を確認
+               - 不足している場合は追加購入
             
-            **4. レート制限確認**
-            - 無料枠: 1分20回、1日50回
-            - 有料: 1日1000回まで
+            4. **レート制限確認**
+               - 無料枠・有料枠の制限を確認
             
-            **5. モデルアクセス権限**
-            - 使用するモデルが許可されているか確認
-            - 無料モデル: `openai/gpt-3.5-turbo`, `meta-llama/llama-3.1-8b-instruct`
+            5. **モデルアクセス権限**
+               - 使用するモデルが許可されているか確認
             """)
+
