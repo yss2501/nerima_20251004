@@ -775,7 +775,7 @@ if st.session_state.get("show_admin", False):
         
         # デフォルトモデルを設定
         if "selected_model" not in st.session_state:
-        st.session_state["selected_model"] = "gpt-3.5-turbo (推奨)"
+            st.session_state["selected_model"] = "gpt-3.5-turbo (推奨)"
         
         # モデル選択
         selected_model = st.selectbox(
